@@ -10,20 +10,10 @@ export async function WebhookPostNotification() {
     const response = await fetch(`${env.API_BASE_URL}/meal/today`);
     const data = await response.json();
     logger.info("[Webhook] 급식 API 조회 완료");
-    const meals = data.data.meals;
+    const meals = data?.data?.meals;
 
-    // 급식 정보가 없을 경우
-    if (meals.length === 0) {
-      logger.info("[Webhook] 급식 정보 없음 - 빈 알림 전송");
-      await sendWebhook({
-        embeds: [
-          {
-            title: "급식 정보가 없습니다.",
-            color: 0xff0000,
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
+    if (!meals || meals.length === 0) {
+      logger.info("[Webhook] 급식 정보 없음 - 조기 종료");
       return;
     }
 

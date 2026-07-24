@@ -49,7 +49,12 @@ export class InstagramBot {
               }
 
               logger.info("[postDaily] 급식 이미지 업로드 시작");
-              await this.postMealImage(date);
+              const mealPosted = await this.postMealImage(date);
+              if (!mealPosted) {
+                logger.info("[postDaily] 급식 정보 없음 - 조기 종료");
+                resolve();
+                return;
+              }
               logger.info("[postDaily] 급식 이미지 업로드 완료");
 
               logger.info("[postDaily] Webhook 알림 전송 시작");
@@ -97,7 +102,7 @@ export class InstagramBot {
     await this.postRestImage(date);
   }
 
-  async postMealImage(date?: Date) {
+  async postMealImage(date?: Date): Promise<boolean> {
     const targetDate = date || new Date();
     try {
       logger.info("[postMealImage] 급식 API 존재 여부 확인 중...");
@@ -114,7 +119,7 @@ export class InstagramBot {
 
       if (!isExist) {
         logger.info("[postMealImage] 급식 정보 없음 - 업로드 스킵");
-        return;
+        return false;
       }
 
       const mealImage = await this.imageService.generateMealImage();
@@ -131,6 +136,7 @@ export class InstagramBot {
       });
 
       logger.info(`급식 이미지 업로드 성공`);
+      return true;
     } catch (error) {
       logger.error(`급식 이미지 업로드 실패: ${error}`);
       throw error;
