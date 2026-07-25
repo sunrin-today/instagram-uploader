@@ -1,0 +1,34 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - '-f'
+      - Dockerfile.once
+      - '-t'
+      - >-
+        asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sunrin-today-instagram-uploader:$COMMIT_SHA
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - >-
+        asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sunrin-today-instagram-uploader:$COMMIT_SHA
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    args:
+      - run
+      - jobs
+      - deploy
+      - sunrin-today-instagram-uploader
+      - >-
+        --image=asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sunrin-today-instagram-uploader:$COMMIT_SHA
+      - '--region=asia-northeast1'
+      - '--service-account=sunrin-today-uploader-sa@sunrin-today.iam.gserviceaccount.com'
+      - >-
+        --set-secrets=DATABASE_URL=database-url:latest,INSTAGRAM_PASSWORD=instagram-password:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest
+      - >-
+        --set-env-vars=NODE_ENV=production,SCHOOL_NAME=선린인터넷고등학교,INSTAGRAM_USERNAME=sunrin_today,API_BASE_URL=https://sunrin-today-api-974254001364.asia-northeast1.run.app
+      - '--max-retries=1'
+      - '--task-timeout=900s'
+    entrypoint: gcloud
+options:
+  logging: CLOUD_LOGGING_ONLY
