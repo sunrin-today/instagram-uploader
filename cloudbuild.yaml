@@ -5,30 +5,43 @@ steps:
       - '-f'
       - Dockerfile.once
       - '-t'
-      - >-
-        asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sunrin-today-instagram-uploader:$COMMIT_SHA
+      - '${_IMAGE}'
       - .
+
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - >-
-        asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sunrin-today-instagram-uploader:$COMMIT_SHA
+      - '${_IMAGE}'
+
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
     args:
       - run
       - jobs
       - deploy
       - sunrin-today-instagram-uploader
-      - >-
-        --image=asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sunrin-today-instagram-uploader:$COMMIT_SHA
-      - '--region=asia-northeast1'
-      - '--service-account=sunrin-today-uploader-sa@sunrin-today.iam.gserviceaccount.com'
-      - >-
-        --set-secrets=DATABASE_URL=database-url:latest,INSTAGRAM_PASSWORD=instagram-password:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest
-      - >-
-        --set-env-vars=NODE_ENV=production,SCHOOL_NAME=선린인터넷고등학교,INSTAGRAM_USERNAME=sunrin_today,API_BASE_URL=https://sunrin-today-api-974254001364.asia-northeast1.run.app
+      - '--image=${_IMAGE}'
+      - '--region=${_REGION}'
+      - '--service-account=${_SERVICE_ACCOUNT}'
       - '--max-retries=1'
       - '--task-timeout=900s'
-    entrypoint: gcloud
+      - '--set-secrets=${_SECRETS}'
+      - '--set-env-vars=${_ENV_VARS}'
+
+substitutions:
+  _REGION: asia-northeast1
+  _SERVICE_ACCOUNT: sunrin-today-uploader-sa@sunrin-today.iam.gserviceaccount.com
+  _IMAGE: >-
+    asia-northeast1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/sunrin-today-instagram-uploader:${COMMIT_SHA}
+  _SECRETS: >-
+    DATABASE_URL=database-url:latest,
+    INSTAGRAM_PASSWORD=instagram-password:latest,
+    DISCORD_WEBHOOK_URL=discord-webhook-url:latest
+  _ENV_VARS: >-
+    NODE_ENV=production,
+    SCHOOL_NAME=선린인터넷고등학교,
+    INSTAGRAM_USERNAME=sunrin_today,
+    API_BASE_URL=https://api.sunrin.kr
+
 options:
   logging: CLOUD_LOGGING_ONLY
