@@ -4,7 +4,11 @@ export interface Embed {
   color?: number;
   timestamp?: string;
   image?: {
-    url: any;
+    url: string;
+  };
+  footer?: {
+    text: string;
+    icon_url?: string;
   };
 }
 
