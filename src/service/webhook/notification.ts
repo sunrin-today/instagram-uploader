@@ -1,4 +1,5 @@
 import { env } from "../../constants/env";
+import { getCurrentDateKorean } from "../../utils/date";
 import { Logger } from "../../utils/logger";
 import { sendWebhook } from "../webhook";
 
@@ -17,25 +18,27 @@ export async function WebhookPostNotification() {
       return;
     }
 
-    const mealDescription: string = meals
-      .map((meal: any) => {
-        return `- ${meal.meal} ${meal.code}\n`;
+    const mealDescription = meals
+      .map((meal: { meal: string; code: string | null }) => {
+        const code = meal.code ? ` · \`${meal.code}\`` : "";
+        return `• **${meal.meal}**${code}`;
       })
-      .join("");
+      .join("\n");
 
-    // 급식 정보가 있을 경우
+    const mealDate = data?.data?.date
+      ? new Date(`${data.data.date}T00:00:00`)
+      : new Date();
+
     logger.info("[Webhook] Discord Webhook 전송 중...");
     await sendWebhook({
       embeds: [
         {
           title: "선린투데이 업로드 알림",
-          description: `
-                        \`\`\`${mealDescription}\`\`\`
-                    `,
+          description: mealDescription,
           color: 0x457bff,
-          timestamp: new Date().toISOString(),
-          image: {
-            url: "https://item.kakaocdn.net/do/c838c164801d148d4fe09b83adada4c88f324a0b9c48f77dbce3a43bd11ce785",
+          timestamp: mealDate.toISOString(),
+          footer: {
+            text: getCurrentDateKorean(mealDate),
           },
         },
       ],
