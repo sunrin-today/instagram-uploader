@@ -49,7 +49,10 @@ def school_meal(lst, date, weekday):
 def get_meal_json():
     today = datetime.today()
     date = today.strftime('%Y-%m-%d')
-    response = requests.get(f"{os.environ['API_BASE_URL']}/meal/today")
+    response = requests.get(
+        f"{os.environ['API_BASE_URL']}/meal/today",
+        headers={"X-API-Key": os.environ["API_KEY"]},
+    )
     data = response.json()['data']['meals']
     todayData = [d['meal'] for d in data]
     school_meal(todayData, date, today.weekday())

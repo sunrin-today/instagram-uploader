@@ -1,5 +1,6 @@
 import { env } from "../constants/env";
 import { DelayOptions } from "../types";
+import { apiFetch } from "../utils/api";
 import { getDayName, isFirstWeekdayOfMonth } from "../utils/date";
 import { Logger } from "../utils/logger";
 
@@ -106,7 +107,7 @@ export class InstagramBot {
     const targetDate = date || new Date();
     try {
       logger.info("[postMealImage] 급식 API 존재 여부 확인 중...");
-      const isExist = await fetch(`${env.API_BASE_URL}/meal/today`)
+      const isExist = await apiFetch("/meal/today")
         .then((res) => {
           const exists = res.status === 200;
           logger.info(`[postMealImage] 급식 API 응답: status=${res.status}, exists=${exists}`);

@@ -1,5 +1,5 @@
-import { env } from "../../constants/env";
 import { getCurrentDateKorean } from "../../utils/date";
+import { apiFetch } from "../../utils/api";
 import { Logger } from "../../utils/logger";
 import { sendWebhook } from "../webhook";
 
@@ -8,7 +8,7 @@ const logger = new Logger();
 export async function WebhookPostNotification() {
   try {
     logger.info("[Webhook] 급식 API 조회 중...");
-    const response = await fetch(`${env.API_BASE_URL}/meal/today`);
+    const response = await apiFetch("/meal/today");
     const data = await response.json();
     logger.info("[Webhook] 급식 API 조회 완료");
     const meals = data?.data?.meals;

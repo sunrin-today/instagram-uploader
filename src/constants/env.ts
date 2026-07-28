@@ -1,5 +1,6 @@
 export const env = {
   API_BASE_URL: process.env.API_BASE_URL,
+  API_KEY: process.env.API_KEY!,
 
   SCHOOL_NAME: process.env.SCHOOL_NAME,
 
