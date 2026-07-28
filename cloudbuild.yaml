@@ -36,7 +36,8 @@ substitutions:
   _SECRETS: >-
     DATABASE_URL=database-url:latest,
     INSTAGRAM_PASSWORD=instagram-password:latest,
-    DISCORD_WEBHOOK_URL=discord-webhook-url:latest
+    DISCORD_WEBHOOK_URL=discord-webhook-url:latest,
+    API_KEY=api-key:latest
   _ENV_VARS: >-
     NODE_ENV=production,
     SCHOOL_NAME=선린인터넷고등학교,
