@@ -1,7 +1,12 @@
 import { env } from "../constants/env";
-import { DelayOptions } from "../types";
-import { apiFetch } from "../utils/api";
-import { getDayName, isFirstWeekdayOfMonth } from "../utils/date";
+import { DateMeal, DelayOptions, RestImageItem } from "../types";
+import { apiJson } from "../utils/api";
+import {
+  formatIsoDateKorean,
+  getKstIsoDate,
+  isFirstWeekdayOfMonth,
+  monthRangeFromIso,
+} from "../utils/date";
 import { Logger } from "../utils/logger";
 
 import { ImageService } from "./image";
@@ -29,18 +34,16 @@ export class InstagramBot {
   }
 
   async postDaily({ delay = 0 }: DelayOptions) {
-    const date = new Date();
-    logger.info(
-      `[postDaily] 시작 - delay: ${delay}분, date: ${date.toISOString()}`
-    );
+    logger.info(`[postDaily] 시작 - delay: ${delay}분`);
 
     try {
       await new Promise<void>((resolve, reject) => {
         setTimeout(
           async () => {
             try {
+              const date = getKstIsoDate();
               logger.info(
-                `[postDaily] ${delay}분 대기 완료, 실제 업로드 작업 시작`
+                `[postDaily] ${delay}분 대기 완료, 실제 업로드 작업 시작 - date: ${date}`
               );
 
               if (isFirstWeekdayOfMonth(date)) {
@@ -58,10 +61,6 @@ export class InstagramBot {
               }
               logger.info("[postDaily] 급식 이미지 업로드 완료");
 
-              logger.info("[postDaily] Webhook 알림 전송 시작");
-              await WebhookPostNotification();
-              logger.info("[postDaily] Webhook 알림 전송 완료");
-
               logger.info("[postDaily] 모든 작업 완료");
               resolve();
             } catch (error) {
@@ -78,14 +77,33 @@ export class InstagramBot {
     }
   }
 
-  async postRestImage(date?: Date) {
-    const targetDate = date || new Date();
+  async postRestImage(date?: string) {
+    const targetDate = date ?? getKstIsoDate();
     try {
-      const restImage = await this.imageService.generateRestImage();
+      const { from, to } = monthRangeFromIso(targetDate);
+      logger.info(`[postRestImage] 휴일 API 조회 중... (${from} ~ ${to})`);
+      const { ok, data } = await apiJson<DateMeal[]>(
+        `/meal/period?date_from=${from}&date_to=${to}`
+      );
 
-      const monthDate = `${targetDate.getFullYear()}년 ${String(
-        targetDate.getMonth() + 1
-      ).padStart(2, "0")}월`;
+      if (!ok) {
+        logger.info("[postRestImage] 휴일 정보 조회 실패 - 빈 목록으로 진행");
+      }
+
+      const items: RestImageItem[] = (data ?? [])
+        .filter((item) => item.rest)
+        .map((item) => ({
+          date: item.date,
+          content: item.meals[0]?.meal ?? null,
+        }));
+
+      const restImage = await this.imageService.generateRestImage({
+        date: targetDate,
+        items,
+      });
+
+      const [year, month] = targetDate.split("-");
+      const monthDate = `${year}년 ${month}월`;
 
       await this.instagramService.publishPhoto({
         file: restImage,
@@ -99,42 +117,39 @@ export class InstagramBot {
     }
   }
 
-  private async postMonthlyRestImage(date: Date) {
+  private async postMonthlyRestImage(date: string) {
     await this.postRestImage(date);
   }
 
-  async postMealImage(date?: Date): Promise<boolean> {
-    const targetDate = date || new Date();
+  async postMealImage(date?: string): Promise<boolean> {
+    const targetDate = date ?? getKstIsoDate();
     try {
-      logger.info("[postMealImage] 급식 API 존재 여부 확인 중...");
-      const isExist = await apiFetch("/meal/today")
-        .then((res) => {
-          const exists = res.status === 200;
-          logger.info(`[postMealImage] 급식 API 응답: status=${res.status}, exists=${exists}`);
-          return exists;
-        })
-        .catch((error) => {
-          logger.error(`[postMealImage] 급식 API 조회 실패: ${error}`);
-          return false;
-        });
+      logger.info(`[postMealImage] 급식 API 조회 중... (${targetDate})`);
+      const { ok, status, data } = await apiJson<DateMeal>(
+        `/meal?date=${targetDate}`
+      );
+      logger.info(
+        `[postMealImage] 급식 API 응답: status=${status}, exists=${ok}`
+      );
 
-      if (!isExist) {
+      if (!ok || !data) {
         logger.info("[postMealImage] 급식 정보 없음 - 업로드 스킵");
         return false;
       }
 
-      const mealImage = await this.imageService.generateMealImage();
-      const formattedDate = `${targetDate.getFullYear()}년 ${String(
-        targetDate.getMonth() + 1
-      ).padStart(2, "0")}월 ${String(targetDate.getDate()).padStart(
-        2,
-        "0"
-      )}일 ${getDayName(targetDate, "ko")}요일`;
+      const mealImage = await this.imageService.generateMealImage({
+        date: targetDate,
+        meals: data.meals.map((item) => item.meal),
+      });
 
       await this.instagramService.publishPhoto({
         file: mealImage,
-        caption: `${env.SCHOOL_NAME} 오늘의 정보\n\n${formattedDate}\n\n#급식표 #밥밥밥`,
+        caption: `${env.SCHOOL_NAME} 오늘의 정보\n\n${formatIsoDateKorean(targetDate)}\n\n#급식표 #밥밥밥`,
       });
+
+      logger.info("[postMealImage] Webhook 알림 전송 시작");
+      await WebhookPostNotification(data);
+      logger.info("[postMealImage] Webhook 알림 전송 완료");
 
       logger.info(`급식 이미지 업로드 성공`);
       return true;

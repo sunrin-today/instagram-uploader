@@ -16,3 +16,9 @@ export function apiFetch(path: string, init?: RequestInit) {
     headers: apiHeaders(init?.headers),
   });
 }
+
+export async function apiJson<T>(path: string, init?: RequestInit) {
+  const response = await apiFetch(path, init);
+  const body = (await response.json()) as { data?: T };
+  return { status: response.status, ok: response.ok, data: body.data };
+}
