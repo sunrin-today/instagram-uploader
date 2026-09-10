@@ -10,6 +10,7 @@ logs
 
 /.pnpm-store
 /build
+/test_images
 
 .DS_Store
 

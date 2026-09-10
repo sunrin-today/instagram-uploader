@@ -6,6 +6,16 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from textfit import (
+    MEAL_FONT_SIZE,
+    MEAL_LINE_GAP,
+    MEAL_MAX_CHARS,
+    MEAL_MAX_CHARS_UPPER,
+    MEAL_MAX_ITEMS,
+    draw_items_from_bottom,
+    limit_items,
+)
+
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
 
@@ -16,9 +26,6 @@ def loadfont(fontsize):
 
 def school_meal(lst, date, weekday):
     W = 1024
-    H = 1024
-
-    lst = list(reversed(lst))
 
     date_font = loadfont(36)
     date_font_color = "rgb(196, 196, 196)"
@@ -30,17 +37,24 @@ def school_meal(lst, date, weekday):
     text = f"{parsed_day[0]}년 {parsed_day[1]}월 {parsed_day[2]}일 {WEEKDAYS[weekday]}요일"
     draw.text((W - 392 - 90, 75), text, font=date_font, fill=date_font_color, align="right")
 
-    meal_font = loadfont(70)
     meal_font_color = "rgb(71, 122, 255)"
-
-    text_l = 70
-
-    if len(lst) == 0:
-        draw.text((75, H - 75 - text_l), "급식이 없어요 ㅠㅠ", font=meal_font, fill=meal_font_color)
-    else:
-        for l in lst:
-            draw.text((75, H - 75 - text_l), l, font=meal_font, fill=meal_font_color)
-            text_l += 85
+    items = (
+        ["급식이 없어요 ㅠㅠ"]
+        if not lst
+        else limit_items(
+            lst,
+            max_chars=MEAL_MAX_CHARS,
+            max_chars_upper=MEAL_MAX_CHARS_UPPER,
+            max_items=MEAL_MAX_ITEMS,
+        )
+    )
+    draw_items_from_bottom(
+        draw,
+        items,
+        font=loadfont(MEAL_FONT_SIZE),
+        line_gap=MEAL_LINE_GAP,
+        fill=meal_font_color,
+    )
 
     return image.convert("RGB")
 
