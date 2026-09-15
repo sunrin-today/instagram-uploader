@@ -1,7 +1,6 @@
 import fs from "fs";
-import path from "path";
-
 import { IgApiClient, IgResponseError } from "igramapi";
+import path from "path";
 
 import { validateCaption } from "../middleware/caption";
 import { Logger } from "../utils/logger";
@@ -9,6 +8,22 @@ import { Logger } from "../utils/logger";
 const logger = new Logger();
 const STATE_DIR = path.join(process.cwd(), "data");
 const STATE_FILE = path.join(STATE_DIR, "instagram_state.json");
+
+/**
+ * igramapi 1.48.3 기본값은 Instagram 347.x라서
+ * 로그인 시 "Your version of Instagram is out of date"로 거절된다.
+ * 유지되는 비공식 클라이언트(instagrapi)의 앱 프로필로 덮어쓴다.
+ */
+const INSTAGRAM_APP = {
+  APP_VERSION: "446.0.0.49.77",
+  APP_VERSION_CODE: "385211303",
+  BLOKS_VERSION_ID:
+    "935a519904e9017324cdedb64a283a3c2c1a3d5b0bbc698b451f5aef72cc11df",
+} as const;
+
+const INSTAGRAM_DEVICES = [
+  "34/14; 480dpi; 1344x2992; Google/google; Pixel 8 Pro; husky; husky",
+];
 
 export class InstagramService {
   private username: string = "";
@@ -18,6 +33,20 @@ export class InstagramService {
   constructor() {
     this.instagramInstance = new IgApiClient();
     this.patchPhotoUpload();
+  }
+
+  private applyCurrentAppVersion() {
+    const constants = this.instagramInstance.state.constants as {
+      APP_VERSION: string;
+      APP_VERSION_CODE: string;
+      BLOKS_VERSION_ID: string;
+    };
+    constants.APP_VERSION = INSTAGRAM_APP.APP_VERSION;
+    constants.APP_VERSION_CODE = INSTAGRAM_APP.APP_VERSION_CODE;
+    constants.BLOKS_VERSION_ID = INSTAGRAM_APP.BLOKS_VERSION_ID;
+    logger.info(
+      `[Instagram] 앱 버전 적용 (${INSTAGRAM_APP.APP_VERSION} / ${INSTAGRAM_APP.APP_VERSION_CODE})`
+    );
   }
 
   /**
@@ -40,8 +69,7 @@ export class InstagramService {
       const height = 1024;
 
       const uploadId = options.uploadId ?? Date.now();
-      const random10 =
-        Math.floor(Math.random() * 9000000000) + 1000000000;
+      const random10 = Math.floor(Math.random() * 9000000000) + 1000000000;
       const name = `${uploadId}_0_${random10}`;
       const contentLength = options.file.byteLength;
 
@@ -72,7 +100,6 @@ export class InstagramService {
         url: `/rupload_igphoto/${name}`,
         method: "POST",
         headers: {
-          // eslint-disable-next-line @typescript-eslint/naming-convention
           X_FB_PHOTO_WATERFALL_ID: options.waterfallId ?? "",
           "X-Entity-Type": "image/jpeg",
           Offset: 0,
@@ -124,10 +151,14 @@ export class InstagramService {
     this.password = password;
 
     logger.info(`[Instagram] 로그인 시도 중 (username: ${this.username})`);
-    this.instagramInstance.state.generateDevice(this.username);
+    this.instagramInstance.state.generateDevice(
+      this.username,
+      INSTAGRAM_DEVICES
+    );
     logger.info("[Instagram] 기기 정보 생성 완료");
 
     const stateLoaded = await this.loadState();
+    this.applyCurrentAppVersion();
 
     if (stateLoaded) {
       logger.info(`[Instagram] 세션 재사용 (username: ${this.username})`);
@@ -144,16 +175,14 @@ export class InstagramService {
       try {
         await this.instagramInstance.simulate.postLoginFlow();
       } catch (error) {
-        const errMsg =
-          error instanceof Error ? error.message : String(error);
+        const errMsg = error instanceof Error ? error.message : String(error);
         logger.warn(
           `[Instagram] postLoginFlow 실패 (무시하고 진행): ${errMsg}`
         );
       }
       await this.saveState();
     } catch (error) {
-      const errMsg =
-        error instanceof Error ? error.message : String(error);
+      const errMsg = error instanceof Error ? error.message : String(error);
       const errStack = error instanceof Error ? error.stack : "";
       logger.error(
         `[Instagram] 로그인 실패 (username: ${this.username}) - ${errMsg}`
