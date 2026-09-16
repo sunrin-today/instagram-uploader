@@ -26,10 +26,7 @@ export class InstagramBot {
 
   async init(): Promise<void> {
     logger.info("[InstagramBot] 로그인 초기화 시작...");
-    await this.instagramService.login(
-      process.env.INSTAGRAM_USERNAME!,
-      process.env.INSTAGRAM_PASSWORD!
-    );
+    await this.instagramService.login();
     logger.info("[InstagramBot] 로그인 초기화 완료");
   }
 

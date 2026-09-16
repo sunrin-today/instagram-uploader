@@ -2,6 +2,7 @@ import { validateEnv } from "./middleware/env";
 import { ImageService } from "./service/image";
 import { InstagramService } from "./service/instagram";
 import { InstagramBot } from "./service/instagram-bot";
+import { WebhookErrorNotification } from "./service/webhook/notification";
 import { Logger } from "./utils/logger";
 
 import "dotenv/config";
@@ -30,8 +31,12 @@ async function postManually() {
   try {
     (await bot).postDaily({ delay: 0 });
     logger.info("수동 업로드가 성공적으로 실행되었습니다");
-  } catch {
+  } catch (error) {
     logger.error("수동 업로드가  실패했습니다");
+    await WebhookErrorNotification({
+      reason: "수동 업로드 실패",
+      error,
+    });
   }
 }
 
@@ -40,8 +45,12 @@ async function postMealManually() {
   try {
     await (await bot).postMealImage();
     logger.info("급식 이미지 수동 업로드가 성공적으로 실행되었습니다");
-  } catch {
+  } catch (error) {
     logger.error("급식 이미지 수동 업로드가 실패했습니다");
+    await WebhookErrorNotification({
+      reason: "급식 이미지 수동 업로드 실패",
+      error,
+    });
   }
 }
 
@@ -50,8 +59,12 @@ async function postRestManually() {
   try {
     await (await bot).postRestImage();
     logger.info("휴식 이미지 수동 업로드가 성공적으로 실행되었습니다");
-  } catch {
+  } catch (error) {
     logger.error("휴식 이미지 수동 업로드가 실패했습니다");
+    await WebhookErrorNotification({
+      reason: "휴식 이미지 수동 업로드 실패",
+      error,
+    });
   }
 }
 
@@ -81,6 +94,10 @@ setTimeout(async () => {
     }
   } catch (error) {
     logger.error(`[App] 수동 업로드 실패: ${error}`);
+    await WebhookErrorNotification({
+      reason: "수동 업로드 실패",
+      error,
+    });
     process.exit(1);
   }
 }, 5000);

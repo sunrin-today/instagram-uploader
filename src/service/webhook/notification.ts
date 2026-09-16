@@ -1,3 +1,4 @@
+import { env } from "../../constants/env";
 import { DateMeal } from "../../types";
 import { formatIsoDateKorean } from "../../utils/date";
 import { Logger } from "../../utils/logger";
@@ -39,5 +40,45 @@ export async function WebhookPostNotification(meal: DateMeal) {
   } catch (error) {
     logger.error(`[Webhook] 알림 전송 실패: ${error}`);
     throw error;
+  }
+}
+
+function formatErrorText(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
+  const body = stack && stack !== message ? `${message}\n\n${stack}` : message;
+  return body.slice(0, 3500);
+}
+
+export async function WebhookErrorNotification({
+  reason,
+  error,
+}: {
+  reason: string;
+  error: unknown;
+}): Promise<void> {
+  if (!env.DISCORD_WEBHOOK_URL) {
+    logger.warn("[Webhook] DISCORD_WEBHOOK_URL 없음 - 오류 알림 스킵");
+    return;
+  }
+
+  try {
+    logger.info(`[Webhook] 오류 알림 전송 중... (${reason})`);
+    await sendWebhook({
+      embeds: [
+        {
+          title: "선린투데이 업로드 오류",
+          description: `**원인:** ${reason}\n\`\`\`\n${formatErrorText(error)}\n\`\`\``,
+          color: 0xed4245,
+          timestamp: new Date().toISOString(),
+          footer: {
+            text: reason,
+          },
+        },
+      ],
+    });
+    logger.info("[Webhook] 오류 알림 전송 완료");
+  } catch (webhookError) {
+    logger.error(`[Webhook] 오류 알림 전송 실패: ${webhookError}`);
   }
 }

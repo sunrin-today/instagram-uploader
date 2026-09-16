@@ -35,13 +35,15 @@ substitutions:
     asia-northeast1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/sunrin-today-instagram-uploader:${COMMIT_SHA}
   _SECRETS: >-
     DATABASE_URL=database-url:latest,
-    INSTAGRAM_PASSWORD=instagram-password:latest,
+    INSTAGRAM_ACCESS_TOKEN=instagram-access-token:latest,
     DISCORD_WEBHOOK_URL=discord-webhook-url:latest,
     API_KEY=api-key:latest
   _ENV_VARS: >-
     NODE_ENV=production,
     SCHOOL_NAME=선린인터넷고등학교,
     INSTAGRAM_USERNAME=sunrin_today,
+    INSTAGRAM_IG_ID=1784146540991058488,
+    GCS_BUCKET=sunrin-today-instagram,
     API_BASE_URL=https://api.sunrin.kr
 
 options:

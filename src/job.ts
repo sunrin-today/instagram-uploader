@@ -2,6 +2,7 @@ import { validateJobEnv } from "./middleware/env";
 import { ImageService } from "./service/image";
 import { InstagramService } from "./service/instagram";
 import { InstagramBot } from "./service/instagram-bot";
+import { WebhookErrorNotification } from "./service/webhook/notification";
 import { Logger } from "./utils/logger";
 
 import "dotenv/config";
@@ -29,7 +30,10 @@ const initializeBot = async () => {
     process.exit(0);
   } catch (error) {
     logger.error(`[Job] 실행 실패: ${error}`);
-
+    await WebhookErrorNotification({
+      reason: "Job 실행 실패",
+      error,
+    });
     process.exit(1);
   }
 })();

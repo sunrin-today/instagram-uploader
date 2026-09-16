@@ -5,6 +5,7 @@ import { validateEnv } from "./middleware/env";
 import { ImageService } from "./service/image";
 import { InstagramService } from "./service/instagram";
 import { InstagramBot } from "./service/instagram-bot";
+import { WebhookErrorNotification } from "./service/webhook/notification";
 import { Logger } from "./utils/logger";
 
 import "dotenv/config";
@@ -24,7 +25,7 @@ const initializeBot = async () => {
   return bot;
 };
 
-const { INSTAGRAM_PASSWORD, ...envForPrint } = env;
+const { INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_APP_SECRET, ...envForPrint } = env;
 
 console.log("Environments", envForPrint);
 
@@ -46,12 +47,20 @@ let bot: Awaited<ReturnType<typeof initializeBot>>;
         logger.info("[Cron] 일일 업로드 Cron Job 완료");
       } catch (error) {
         logger.error(`[Cron] 일일 업로드 Cron Job 실패: ${error}`);
+        await WebhookErrorNotification({
+          reason: "일일 업로드 실패",
+          error,
+        });
       }
     });
 
     logger.info("[App] Instagram Bot 실행됨 - Cron 스케줄 대기 중");
   } catch (error) {
     logger.error(`[App] 봇 초기화 실패 - 프로세스 종료: ${error}`);
+    await WebhookErrorNotification({
+      reason: "봇 초기화 실패",
+      error,
+    });
     process.exit(1);
   }
 })();
