@@ -12,16 +12,22 @@ RUN pnpm run build
 FROM node:23-bookworm-slim AS runner
 
 ENV TZ=Asia/Seoul
+ENV PATH="/app/.venv/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     python3 \
-    python3-requests \
-    python3-pillow \
+    python3-venv \
+    python3-pip \
     && ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY requirements.txt ./
+RUN python3 -m venv .venv \
+    && .venv/bin/pip install --no-cache-dir -U pip \
+    && .venv/bin/pip install --no-cache-dir -r requirements.txt
+
 COPY package.json pnpm-lock.yaml ./
 RUN corepack enable && corepack prepare pnpm --activate
 RUN pnpm install --frozen-lockfile --prod

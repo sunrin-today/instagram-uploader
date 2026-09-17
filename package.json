@@ -11,6 +11,7 @@
     "manual:meal": "pnpm run build && node dist/manual.js meal",
     "manual:rest": "pnpm run build && node dist/manual.js rest",
     "verify": "pnpm run build && node dist/verify.js",
+    "setup:python": "bash scripts/setup-python.sh",
     "dev": "tsc -w",
     "test": "jest",
     "test:watch": "jest --watch",

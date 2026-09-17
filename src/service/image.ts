@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { existsSync } from "fs";
 import path from "path";
 
 import { MealImageInput, RestImageInput } from "../types";
@@ -12,9 +13,16 @@ function scriptPath(filename: string) {
   return path.resolve(__dirname, "../../src/scripts", filename);
 }
 
+function pythonBin(): string {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const venv = path.resolve(__dirname, "../../.venv/bin/python3");
+  if (existsSync(venv)) return venv;
+  return "python3";
+}
+
 function runPython(script: string, payload: unknown): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("python3", [script], {
+    const proc = spawn(pythonBin(), [script], {
       stdio: ["pipe", "pipe", "pipe"],
     });
 

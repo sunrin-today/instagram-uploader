@@ -1,54 +1,32 @@
-![Cover Image](/assets/banner_rounded.png)
+![Cover Image](https://raw.githubusercontent.com/sunrin-today/.github/assets/banner_rounded.png)
 
-# 선린투데이
+# Sunrin Today Instagram Uploader
 
-선린인터넷고등학교 급식 정보를 인스타그램에 자동으로 게시하는 프로젝트 입니다.
+급식 이미지를 Instagram [@sunrin_today](https://instagram.com/sunrin_today)에 올립니다. 공식 Graph API를 씁니다.
 
-인스타그램 [@sunrin_today](https://instagram.com/sunrin_today)에서 게시물을 확인하실 수 있습니다.
+전체 구조는 [선린투데이 아키텍처](https://github.com/sunrin-today/.github#아키텍처)를 보면 됩니다.
 
-## 기능
+## 설치
 
-- 매일 아침 7시 급식 정보 게시
-- 매월 1일에 해당 월의 휴일 정보를 게시
-
-## 개발자
-- [Sungju Cho](https://github.com/) - Node.js 스케줄링 시스템 구현
-- [Jeewon Kwon](https://github.com/jwkwon0817) - 파이썬 PIL 기반 동적 이미지 생성 구현
-
-## 설치 및 실행
-
-### 개발 환경
+Node.js, pnpm, Python 3
 
 ```bash
-# 의존성 설치
+git clone https://github.com/sunrin-today/instagram-uploader.git
+cd instagram-uploader
+cp .env.example .env
 pnpm install
-
-# 개발 모드 실행
-pnpm run dev
-
-# 빌드
-pnpm run build
-
-# 프로덕션 실행
-pnpm start
+pnpm run setup:python
 ```
 
-### Docker
+## 사용
 
 ```bash
-# 이미지 빌드
-docker build . -t sunrin-today
-
-# 컨테이너 실행
-docker run sunrin-today
+pnpm run verify        # 토큰만 확인
+pnpm run manual:meal   # 오늘 급식
+pnpm run manual:rest   # 이 달의 휴식
+pnpm run start:once    # 프로덕션 Job과 동일
 ```
-
-## 환경 설정
-
-자세한 내용은 `.env.sample` 파일을 확인 해주세요.
 
 ## 라이선스
 
-선린투데이 프로젝트는 [BSD-2-Clause](LICENSE) 라이센스를 채택하고 있습니다.
-
-자세한 내용은 [LICENSE](LICENSE) 파일을 확인 해주세요.
+[BSD-2-Clause](LICENSE)
