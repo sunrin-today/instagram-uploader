@@ -37,6 +37,7 @@ substitutions:
     DATABASE_URL=database-url:latest,
     INSTAGRAM_ACCESS_TOKEN=instagram-access-token:latest,
     DISCORD_WEBHOOK_URL=discord-webhook-url:latest,
+    DISCORD_ERROR_MENTION_IDS=discord-error-mention-ids:latest,
     API_KEY=api-key:latest
   _ENV_VARS: >-
     NODE_ENV=production,

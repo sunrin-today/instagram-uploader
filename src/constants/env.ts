@@ -16,6 +16,7 @@ export const env = {
   INTERVAL: process.env.INTERVAL ?? "0 7 * * 1-5",
 
   DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
+  DISCORD_ERROR_MENTION_IDS: process.env.DISCORD_ERROR_MENTION_IDS,
 
   RANDOM_DELAY: Number(process.env.RANDOM_DELAY ?? 10),
 } as const;

@@ -17,7 +17,19 @@ export interface WebhookAuthor {
   avatar_url: string;
 }
 
+export interface WebhookFile {
+  name: string;
+  data: Buffer;
+  type?: string;
+}
+
 export interface WebhookConfig extends Partial<WebhookAuthor> {
   content?: string;
   embeds?: Embed[];
+  files?: WebhookFile[];
+  allowed_mentions?: {
+    parse?: string[];
+    users?: string[];
+    roles?: string[];
+  };
 }

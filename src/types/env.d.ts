@@ -17,5 +17,6 @@ declare namespace NodeJS {
     RANDOM_DELAY?: string;
 
     DISCORD_WEBHOOK_URL: string;
+    DISCORD_ERROR_MENTION_IDS?: string;
   }
 }

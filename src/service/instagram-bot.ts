@@ -11,7 +11,10 @@ import { Logger } from "../utils/logger";
 
 import { ImageService } from "./image";
 import { InstagramService } from "./instagram";
-import { WebhookPostNotification } from "./webhook/notification";
+import {
+  WebhookPostNotification,
+  WebhookRestNotification,
+} from "./webhook/notification";
 
 const logger = new Logger();
 
@@ -107,6 +110,14 @@ export class InstagramBot {
         caption: `이 달의 휴식 - ${monthDate}`,
         reason: "monthly",
       });
+
+      logger.info("[postRestImage] Webhook 알림 전송 시작");
+      await WebhookRestNotification({
+        date: targetDate,
+        items,
+        image: restImage,
+      });
+      logger.info("[postRestImage] Webhook 알림 전송 완료");
       logger.info(`이 달의 휴식 이미지 업로드 성공`);
     } catch (error) {
       logger.error(`이 달의 휴식 이미지 업로드 실패: ${error}`);
@@ -145,7 +156,7 @@ export class InstagramBot {
       });
 
       logger.info("[postMealImage] Webhook 알림 전송 시작");
-      await WebhookPostNotification(data);
+      await WebhookPostNotification(data, mealImage);
       logger.info("[postMealImage] Webhook 알림 전송 완료");
 
       logger.info(`급식 이미지 업로드 성공`);
