@@ -14,27 +14,37 @@ type GraphErrorBody = {
     message?: string;
     type?: string;
     code?: number;
+    error_subcode?: number;
+    fbtrace_id?: string;
   };
 };
 
 export class InstagramService {
   private accessToken = env.INSTAGRAM_ACCESS_TOKEN!;
+  private igUserId = env.INSTAGRAM_IG_ID!;
 
   private async graphRequest<T>(
     path: string,
     init?: RequestInit
   ): Promise<T> {
-    const separator = path.includes("?") ? "&" : "?";
-    const url = `${GRAPH_API_BASE}${path}${separator}access_token=${encodeURIComponent(
-      this.accessToken
-    )}`;
-    const response = await fetch(url, init);
+    const url = `${GRAPH_API_BASE}${path}`;
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${this.accessToken}`);
+    const response = await fetch(url, { ...init, headers });
     const body = (await response.json()) as T & GraphErrorBody;
     if (!response.ok || body.error) {
+      const error = body.error;
+      const details = [
+        error?.code != null ? `code=${error.code}` : null,
+        error?.error_subcode != null ? `subcode=${error.error_subcode}` : null,
+        error?.fbtrace_id ? `trace=${error.fbtrace_id}` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
       throw new Error(
         `[Instagram] Graph API 실패 (${response.status}): ${
-          body.error?.message ?? JSON.stringify(body)
-        }`
+          error?.message ?? JSON.stringify(body)
+        }${details ? ` (${details})` : ""}`
       );
     }
     return body;
@@ -108,12 +118,19 @@ export class InstagramService {
 
     logger.info("[Instagram] Graph API 토큰 확인 중...");
     const me = await this.graphRequest<{
+      id?: string;
       user_id?: string;
       username?: string;
-    }>("/me?fields=user_id,username");
+    }>("/me?fields=id,user_id,username");
+    this.igUserId = me.id ?? me.user_id ?? this.igUserId;
     logger.info(
-      `[Instagram] 토큰 확인 완료 (username: ${me.username ?? env.INSTAGRAM_USERNAME}, id: ${me.user_id ?? env.INSTAGRAM_IG_ID})`
+      `[Instagram] 토큰 확인 완료 (username: ${me.username ?? env.INSTAGRAM_USERNAME}, id: ${me.id ?? "-"}, user_id: ${me.user_id ?? "-"})`
     );
+    if (env.INSTAGRAM_IG_ID && this.igUserId !== env.INSTAGRAM_IG_ID) {
+      logger.warn(
+        `[Instagram] INSTAGRAM_IG_ID(${env.INSTAGRAM_IG_ID})와 /me id(${this.igUserId})가 다릅니다. /me id로 게시합니다`
+      );
+    }
   }
 
   private async uploadPublicImage(file: Buffer): Promise<string> {
@@ -189,11 +206,11 @@ export class InstagramService {
 
         const imageUrl = await this.uploadPublicImage(file);
         const container = await this.graphRequest<{ id: string }>(
-          `/${env.INSTAGRAM_IG_ID}/media`,
+          `/${this.igUserId}/media`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               image_url: imageUrl,
               caption,
             }),
@@ -201,10 +218,10 @@ export class InstagramService {
         );
 
         await this.waitForContainer(container.id);
-        await this.graphRequest(`/${env.INSTAGRAM_IG_ID}/media_publish`, {
+        await this.graphRequest(`/${this.igUserId}/media_publish`, {
           method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             creation_id: container.id,
           }),
         });
