@@ -45,7 +45,8 @@ substitutions:
     INSTAGRAM_USERNAME=sunrin_today,
     INSTAGRAM_IG_ID=1784146540991058488,
     GCS_BUCKET=sunrin-today-instagram,
-    API_BASE_URL=https://api.sunrin.kr
+    API_BASE_URL=https://api.sunrin.kr,
+    JOB_MAX_RETRIES=1
 
 options:
   logging: CLOUD_LOGGING_ONLY
