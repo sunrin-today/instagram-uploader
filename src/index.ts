@@ -25,7 +25,12 @@ const initializeBot = async () => {
   return bot;
 };
 
-const { INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_APP_SECRET, ...envForPrint } = env;
+const {
+  INSTAGRAM_ACCESS_TOKEN,
+  INSTAGRAM_APP_SECRET,
+  INSTAGRAM_DELETE_ACCESS_TOKEN,
+  ...envForPrint
+} = env;
 
 console.log("Environments", envForPrint);
 

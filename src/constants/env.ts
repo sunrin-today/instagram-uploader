@@ -1,5 +1,7 @@
 import "dotenv/config";
 
+import { parseMediaLimit } from "../utils/media-limit";
+
 export const env = {
   API_BASE_URL: process.env.API_BASE_URL,
   API_KEY: process.env.API_KEY!,
@@ -10,6 +12,9 @@ export const env = {
   INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN,
   INSTAGRAM_IG_ID: process.env.INSTAGRAM_IG_ID,
   INSTAGRAM_APP_SECRET: process.env.INSTAGRAM_APP_SECRET,
+  INSTAGRAM_MEDIA_LIMIT: parseMediaLimit(process.env.INSTAGRAM_MEDIA_LIMIT),
+  INSTAGRAM_DELETE_ACCESS_TOKEN: process.env.INSTAGRAM_DELETE_ACCESS_TOKEN,
+  INSTAGRAM_DELETE_GRAPH_API_BASE: process.env.INSTAGRAM_DELETE_GRAPH_API_BASE,
 
   GCS_BUCKET: process.env.GCS_BUCKET,
 

@@ -24,6 +24,8 @@ pnpm run setup:python
 pnpm run verify        # 토큰만 확인
 pnpm run manual:meal   # 오늘 급식
 pnpm run manual:rest   # 이 달의 휴식
+pnpm run manual:trim:dry  # 365개 초과분 미리보기
+pnpm run manual:trim   # 오래된 글부터 365개로 맞춤
 pnpm run start:once    # 프로덕션 Job과 동일
 ```
 

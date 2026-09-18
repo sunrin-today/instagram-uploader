@@ -10,6 +10,8 @@
     "manual": "pnpm run build && node dist/manual.js",
     "manual:meal": "pnpm run build && node dist/manual.js meal",
     "manual:rest": "pnpm run build && node dist/manual.js rest",
+    "manual:trim": "pnpm run build && node dist/trim.js",
+    "manual:trim:dry": "pnpm run build && node dist/trim.js --dry-run",
     "verify": "pnpm run build && node dist/verify.js",
     "setup:python": "bash scripts/setup-python.sh",
     "dev": "tsc -w",

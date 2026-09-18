@@ -9,6 +9,9 @@ declare namespace NodeJS {
     INSTAGRAM_ACCESS_TOKEN: string;
     INSTAGRAM_IG_ID: string;
     INSTAGRAM_APP_SECRET?: string;
+    INSTAGRAM_MEDIA_LIMIT?: string;
+    INSTAGRAM_DELETE_ACCESS_TOKEN?: string;
+    INSTAGRAM_DELETE_GRAPH_API_BASE?: string;
 
     GCS_BUCKET?: string;
 

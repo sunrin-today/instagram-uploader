@@ -1,13 +1,34 @@
+import { readFile, writeFile } from "fs/promises";
+import path from "path";
+
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { Storage } from "@google-cloud/storage";
 
 import { env } from "../constants/env";
 import { validateCaption } from "../middleware/caption";
+import { upsertEnvValue } from "../utils/dotenv-file";
 import { Logger } from "../utils/logger";
+import { MediaItem, selectOldestMedia } from "../utils/media-limit";
 
 const logger = new Logger();
 const GRAPH_API_BASE = "https://graph.instagram.com/v25.0";
 const TOKEN_SECRET_NAME = "instagram-access-token";
+const MEDIA_PAGE_SIZE = 100;
+const DELETE_RETRY_LIMIT = 3;
+const DELETE_GAP_MS = 2000;
+const RATE_LIMIT_RETRY_LIMIT = 4;
+
+function isPermissionError(message: string): boolean {
+  return /instagram_manage_contents|(?:^|[^0-9])code=10(?:[^0-9]|$)|(?:^|[^0-9])code=200(?:[^0-9]|$)|#10\b|#200\b|unsupported delete|missing permissions/i.test(
+    message
+  );
+}
+
+function isRateLimitError(message: string): boolean {
+  return /too many actions|(?:^|[^0-9])code=9(?:[^0-9]|$)|subcode=2207074/i.test(
+    message
+  );
+}
 
 type GraphErrorBody = {
   error?: {
@@ -25,13 +46,27 @@ export class InstagramService {
 
   private async graphRequest<T>(
     path: string,
-    init?: RequestInit
+    init?: RequestInit,
+    options?: { baseUrl?: string; accessToken?: string }
   ): Promise<T> {
-    const url = `${GRAPH_API_BASE}${path}`;
+    const url = `${options?.baseUrl ?? GRAPH_API_BASE}${path}`;
     const headers = new Headers(init?.headers);
-    headers.set("Authorization", `Bearer ${this.accessToken}`);
+    headers.set(
+      "Authorization",
+      `Bearer ${options?.accessToken ?? this.accessToken}`
+    );
     const response = await fetch(url, { ...init, headers });
-    const body = (await response.json()) as T & GraphErrorBody;
+    const text = await response.text();
+    let body = {} as T & GraphErrorBody;
+    if (text) {
+      try {
+        body = JSON.parse(text) as T & GraphErrorBody;
+      } catch {
+        throw new Error(
+          `[Instagram] Graph API 실패 (${response.status}): ${text}`
+        );
+      }
+    }
     if (!response.ok || body.error) {
       const error = body.error;
       const details = [
@@ -43,7 +78,7 @@ export class InstagramService {
         .join(" ");
       throw new Error(
         `[Instagram] Graph API 실패 (${response.status}): ${
-          error?.message ?? JSON.stringify(body)
+          error?.message ?? (text || JSON.stringify(body))
         }${details ? ` (${details})` : ""}`
       );
     }
@@ -55,23 +90,33 @@ export class InstagramService {
   }
 
   private async persistRefreshedToken(token: string): Promise<void> {
-    if (!this.isCloudRunJob()) {
-      logger.info(
-        "[Instagram] 로컬 실행이라 Secret Manager에는 저장하지 않습니다"
-      );
+    process.env.INSTAGRAM_ACCESS_TOKEN = token;
+
+    if (this.isCloudRunJob()) {
+      const projectId =
+        process.env.GOOGLE_CLOUD_PROJECT ||
+        process.env.GCP_PROJECT ||
+        "sunrin-today";
+      const client = new SecretManagerServiceClient();
+      await client.addSecretVersion({
+        parent: `projects/${projectId}/secrets/${TOKEN_SECRET_NAME}`,
+        payload: { data: Buffer.from(token, "utf8") },
+      });
+      logger.info("[Instagram] 갱신된 토큰을 Secret Manager에 저장했습니다");
       return;
     }
 
-    const projectId =
-      process.env.GOOGLE_CLOUD_PROJECT ||
-      process.env.GCP_PROJECT ||
-      "sunrin-today";
-    const client = new SecretManagerServiceClient();
-    await client.addSecretVersion({
-      parent: `projects/${projectId}/secrets/${TOKEN_SECRET_NAME}`,
-      payload: { data: Buffer.from(token, "utf8") },
-    });
-    logger.info("[Instagram] 갱신된 토큰을 Secret Manager에 저장했습니다");
+    const envPath = path.resolve(process.cwd(), ".env");
+    try {
+      const current = await readFile(envPath, "utf8");
+      const { next } = upsertEnvValue(current, "INSTAGRAM_ACCESS_TOKEN", token);
+      await writeFile(envPath, next, "utf8");
+      logger.info("[Instagram] 갱신된 토큰을 로컬 .env에 저장했습니다");
+    } catch (error) {
+      logger.warn(
+        `[Instagram] 로컬 .env에 갱신된 토큰을 저장하지 못했습니다: ${error}`
+      );
+    }
   }
 
   private async refreshAccessToken(): Promise<void> {
@@ -181,6 +226,168 @@ export class InstagramService {
     throw new Error("[Instagram] 미디어 컨테이너 처리 시간 초과");
   }
 
+  private deleteRequestOptions() {
+    return {
+      baseUrl: env.INSTAGRAM_DELETE_GRAPH_API_BASE || GRAPH_API_BASE,
+      accessToken: env.INSTAGRAM_DELETE_ACCESS_TOKEN || this.accessToken,
+    };
+  }
+
+  public async listMedia(): Promise<MediaItem[]> {
+    const media: MediaItem[] = [];
+    let after: string | undefined;
+
+    for (let page = 1; page <= 100; page++) {
+      const query = new URLSearchParams({
+        fields: "id,timestamp",
+        limit: String(MEDIA_PAGE_SIZE),
+      });
+      if (after) query.set("after", after);
+
+      const response = await this.graphRequest<{
+        data?: Array<{ id?: string; timestamp?: string }>;
+        paging?: { cursors?: { after?: string }; next?: string };
+      }>(`/${this.igUserId}/media?${query.toString()}`);
+
+      for (const item of response.data ?? []) {
+        if (item.id) {
+          media.push({ id: item.id, timestamp: item.timestamp });
+        }
+      }
+
+      after = response.paging?.next
+        ? response.paging.cursors?.after
+        : undefined;
+      if (!after) break;
+    }
+
+    logger.info(`[Instagram] 피드 게시물 ${media.length}개 조회`);
+    return media;
+  }
+
+  public async deleteMedia(id: string): Promise<void> {
+    try {
+      await this.graphRequest(
+        `/${id}`,
+        { method: "DELETE" },
+        this.deleteRequestOptions()
+      );
+    } catch (error) {
+      const message = String(error);
+      if (isPermissionError(message)) {
+        throw new Error(
+          `[Instagram] 게시물 삭제가 거절되었습니다. 공식 삭제는 Facebook Login과 instagram_manage_contents 권한이 필요합니다. INSTAGRAM_DELETE_ACCESS_TOKEN, INSTAGRAM_DELETE_GRAPH_API_BASE를 확인하세요. 원인: ${message}`
+        );
+      }
+      throw error;
+    }
+  }
+
+  public async trimMediaToLimit({
+    dryRun = false,
+  }: {
+    dryRun?: boolean;
+  } = {}): Promise<{
+    before: number;
+    deleted: number;
+    after: number;
+    stoppedReason?: "rate_limit";
+  }> {
+    const limit = env.INSTAGRAM_MEDIA_LIMIT;
+    const media = await this.listMedia();
+    const oldest = selectOldestMedia(media, limit);
+
+    logger.info(
+      `[Instagram] 게시물 한도 ${limit}개 유지 - 현재 ${media.length}개, 삭제 대상 ${oldest.length}개${dryRun ? " (dry-run)" : ""}`
+    );
+
+    if (oldest.length === 0) {
+      return { before: media.length, deleted: 0, after: media.length };
+    }
+
+    if (dryRun) {
+      for (const item of oldest) {
+        logger.info(
+          `[Instagram] dry-run 삭제 예정 ${item.id} (${item.timestamp ?? "timestamp 없음"})`
+        );
+      }
+      return {
+        before: media.length,
+        deleted: 0,
+        after: media.length,
+      };
+    }
+
+    let deleted = 0;
+    for (const item of oldest) {
+      let lastError: unknown;
+      let rateLimited = false;
+
+      for (let attempt = 1; attempt <= RATE_LIMIT_RETRY_LIMIT; attempt++) {
+        try {
+          logger.info(
+            `[Instagram] 오래된 게시물 삭제 ${deleted + 1}/${oldest.length} - ${item.id} (${item.timestamp ?? "timestamp 없음"})`
+          );
+          await this.deleteMedia(item.id);
+          deleted += 1;
+          lastError = undefined;
+          rateLimited = false;
+          break;
+        } catch (error) {
+          lastError = error;
+          const message = String(error);
+          logger.error(
+            `[Instagram] 게시물 삭제 실패 (시도 ${attempt}/${RATE_LIMIT_RETRY_LIMIT}) - ${error}`
+          );
+
+          if (isPermissionError(message)) {
+            break;
+          }
+
+          if (isRateLimitError(message)) {
+            rateLimited = true;
+            if (attempt < RATE_LIMIT_RETRY_LIMIT) {
+              const waitMs = attempt * 60_000;
+              logger.warn(
+                `[Instagram] 삭제 속도 제한 - ${waitMs / 1000}초 대기 후 재시도`
+              );
+              await new Promise((resolve) => setTimeout(resolve, waitMs));
+              continue;
+            }
+            break;
+          }
+
+          if (attempt >= DELETE_RETRY_LIMIT) break;
+          await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
+        }
+      }
+
+      if (lastError && rateLimited) {
+        logger.warn(
+          `[Instagram] 속도 제한으로 이번 정리를 멈춥니다. ${deleted}개 삭제됨, 나머지는 다음에 이어서 지웁니다`
+        );
+        return {
+          before: media.length,
+          deleted,
+          after: media.length - deleted,
+          stoppedReason: "rate_limit",
+        };
+      }
+
+      if (lastError) throw lastError;
+      await new Promise((resolve) => setTimeout(resolve, DELETE_GAP_MS));
+    }
+
+    logger.info(
+      `[Instagram] 게시물 한도 정리 완료 - ${media.length}개 → ${media.length - deleted}개`
+    );
+    return {
+      before: media.length,
+      deleted,
+      after: media.length - deleted,
+    };
+  }
+
   public async publishPhoto({
     file,
     caption,
@@ -229,6 +436,13 @@ export class InstagramService {
         logger.info(
           `[Instagram] 사진 업로드 성공${reason ? ` - reason: ${reason}` : ""}`
         );
+        try {
+          await this.trimMediaToLimit();
+        } catch (error) {
+          logger.error(
+            `[Instagram] 업로드는 성공했지만 게시물 한도 정리에 실패했습니다: ${error}`
+          );
+        }
         return;
       } catch (error) {
         lastError = error;
