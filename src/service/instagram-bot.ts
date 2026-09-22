@@ -105,7 +105,7 @@ export class InstagramBot {
       const [year, month] = targetDate.split("-");
       const monthDate = `${year}년 ${month}월`;
 
-      await this.instagramService.publishPhoto({
+      const trim = await this.instagramService.publishPhoto({
         file: restImage,
         caption: `이 달의 휴식 - ${monthDate}`,
         reason: "monthly",
@@ -116,6 +116,7 @@ export class InstagramBot {
         date: targetDate,
         items,
         image: restImage,
+        trim,
       });
       logger.info("[postRestImage] Webhook 알림 전송 완료");
       logger.info(`이 달의 휴식 이미지 업로드 성공`);
@@ -150,13 +151,13 @@ export class InstagramBot {
         meals: data.meals.map((item) => item.meal),
       });
 
-      await this.instagramService.publishPhoto({
+      const trim = await this.instagramService.publishPhoto({
         file: mealImage,
         caption: `${env.SCHOOL_NAME} 오늘의 정보\n\n${formatIsoDateKorean(targetDate)}\n\n#급식표 #밥밥밥`,
       });
 
       logger.info("[postMealImage] Webhook 알림 전송 시작");
-      await WebhookPostNotification(data, mealImage);
+      await WebhookPostNotification(data, mealImage, trim);
       logger.info("[postMealImage] Webhook 알림 전송 완료");
 
       logger.info(`급식 이미지 업로드 성공`);

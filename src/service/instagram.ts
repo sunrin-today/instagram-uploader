@@ -8,15 +8,18 @@ import { env } from "../constants/env";
 import { validateCaption } from "../middleware/caption";
 import { upsertEnvValue } from "../utils/dotenv-file";
 import { Logger } from "../utils/logger";
-import { MediaItem, selectOldestMedia } from "../utils/media-limit";
+import {
+  MediaItem,
+  selectOldestMedia,
+  TrimOutcome,
+  TrimResult,
+} from "../utils/media-limit";
 
 const logger = new Logger();
 const GRAPH_API_BASE = "https://graph.instagram.com/v25.0";
 const TOKEN_SECRET_NAME = "instagram-access-token";
 const MEDIA_PAGE_SIZE = 100;
-const DELETE_RETRY_LIMIT = 3;
 const DELETE_GAP_MS = 2000;
-const RATE_LIMIT_RETRY_LIMIT = 4;
 
 function isPermissionError(message: string): boolean {
   return /instagram_manage_contents|(?:^|[^0-9])code=10(?:[^0-9]|$)|(?:^|[^0-9])code=200(?:[^0-9]|$)|#10\b|#200\b|unsupported delete|missing permissions/i.test(
@@ -227,10 +230,14 @@ export class InstagramService {
   }
 
   private deleteRequestOptions() {
-    return {
-      baseUrl: env.INSTAGRAM_DELETE_GRAPH_API_BASE || GRAPH_API_BASE,
-      accessToken: env.INSTAGRAM_DELETE_ACCESS_TOKEN || this.accessToken,
-    };
+    const accessToken = env.INSTAGRAM_DELETE_ACCESS_TOKEN;
+    const baseUrl = env.INSTAGRAM_DELETE_GRAPH_API_BASE;
+    if (!accessToken || !baseUrl) {
+      throw new Error(
+        "[Instagram] 삭제 토큰이 없습니다. INSTAGRAM_DELETE_ACCESS_TOKEN과 INSTAGRAM_DELETE_GRAPH_API_BASE를 설정하세요. 올리기 토큰으로는 지울 수 없습니다."
+      );
+    }
+    return { baseUrl, accessToken };
   }
 
   public async listMedia(): Promise<MediaItem[]> {
@@ -287,12 +294,7 @@ export class InstagramService {
     dryRun = false,
   }: {
     dryRun?: boolean;
-  } = {}): Promise<{
-    before: number;
-    deleted: number;
-    after: number;
-    stoppedReason?: "rate_limit";
-  }> {
+  } = {}): Promise<TrimResult> {
     const limit = env.INSTAGRAM_MEDIA_LIMIT;
     const media = await this.listMedia();
     const oldest = selectOldestMedia(media, limit);
@@ -320,61 +322,31 @@ export class InstagramService {
 
     let deleted = 0;
     for (const item of oldest) {
-      let lastError: unknown;
-      let rateLimited = false;
-
-      for (let attempt = 1; attempt <= RATE_LIMIT_RETRY_LIMIT; attempt++) {
-        try {
-          logger.info(
-            `[Instagram] 오래된 게시물 삭제 ${deleted + 1}/${oldest.length} - ${item.id} (${item.timestamp ?? "timestamp 없음"})`
-          );
-          await this.deleteMedia(item.id);
-          deleted += 1;
-          lastError = undefined;
-          rateLimited = false;
-          break;
-        } catch (error) {
-          lastError = error;
-          const message = String(error);
-          logger.error(
-            `[Instagram] 게시물 삭제 실패 (시도 ${attempt}/${RATE_LIMIT_RETRY_LIMIT}) - ${error}`
-          );
-
-          if (isPermissionError(message)) {
-            break;
-          }
-
-          if (isRateLimitError(message)) {
-            rateLimited = true;
-            if (attempt < RATE_LIMIT_RETRY_LIMIT) {
-              const waitMs = attempt * 60_000;
-              logger.warn(
-                `[Instagram] 삭제 속도 제한 - ${waitMs / 1000}초 대기 후 재시도`
-              );
-              await new Promise((resolve) => setTimeout(resolve, waitMs));
-              continue;
-            }
-            break;
-          }
-
-          if (attempt >= DELETE_RETRY_LIMIT) break;
-          await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
-        }
-      }
-
-      if (lastError && rateLimited) {
-        logger.warn(
-          `[Instagram] 속도 제한으로 이번 정리를 멈춥니다. ${deleted}개 삭제됨, 나머지는 다음에 이어서 지웁니다`
+      try {
+        logger.info(
+          `[Instagram] 오래된 게시물 삭제 ${deleted + 1}/${oldest.length} - ${item.id} (${item.timestamp ?? "timestamp 없음"})`
         );
-        return {
-          before: media.length,
-          deleted,
-          after: media.length - deleted,
-          stoppedReason: "rate_limit",
-        };
+        await this.deleteMedia(item.id);
+        deleted += 1;
+      } catch (error) {
+        const message = String(error);
+        logger.error(`[Instagram] 게시물 삭제 실패 - ${error}`);
+
+        if (isRateLimitError(message)) {
+          logger.warn(
+            `[Instagram] 속도 제한으로 이번 정리를 멈춥니다. ${deleted}개 삭제됨, 나머지는 다음에 이어서 지웁니다`
+          );
+          return {
+            before: media.length,
+            deleted,
+            after: media.length - deleted,
+            stoppedReason: "rate_limit",
+          };
+        }
+
+        throw error;
       }
 
-      if (lastError) throw lastError;
       await new Promise((resolve) => setTimeout(resolve, DELETE_GAP_MS));
     }
 
@@ -396,7 +368,7 @@ export class InstagramService {
     file: Buffer;
     caption: string;
     reason?: string;
-  }): Promise<void> {
+  }): Promise<TrimOutcome | undefined> {
     if (!validateCaption(caption)) {
       logger.warn("[Instagram] caption 검증 실패 - 업로드 스킵");
       return;
@@ -437,13 +409,17 @@ export class InstagramService {
           `[Instagram] 사진 업로드 성공${reason ? ` - reason: ${reason}` : ""}`
         );
         try {
-          await this.trimMediaToLimit();
+          const result = await this.trimMediaToLimit();
+          return { ok: true, result };
         } catch (error) {
           logger.error(
             `[Instagram] 업로드는 성공했지만 게시물 한도 정리에 실패했습니다: ${error}`
           );
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
         }
-        return;
       } catch (error) {
         lastError = error;
         logger.error(

@@ -3,6 +3,11 @@ export interface Embed {
   description?: string;
   color?: number;
   timestamp?: string;
+  fields?: Array<{
+    name: string;
+    value: string;
+    inline?: boolean;
+  }>;
   image?: {
     url: string;
   };

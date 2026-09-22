@@ -2,13 +2,43 @@ import { env } from "../../constants/env";
 import { DateMeal, RestImageItem } from "../../types";
 import { formatIsoDateKorean } from "../../utils/date";
 import { Logger } from "../../utils/logger";
+import { TrimOutcome } from "../../utils/media-limit";
 import { sendWebhook } from "../webhook";
+
+function trimEmbedField(trim?: TrimOutcome) {
+  if (!trim) return [];
+  if (!trim.ok) {
+    return [
+      {
+        name: "피드 정리",
+        value: `실패\n${trim.error.slice(0, 800)}`,
+      },
+    ];
+  }
+
+  const { result } = trim;
+  if (result.deleted === 0 && !result.stoppedReason) {
+    return [
+      {
+        name: "피드 정리",
+        value: `${result.after}개 유지 · 삭제 없음`,
+      },
+    ];
+  }
+
+  let value = `${result.before}개 → ${result.after}개 · ${result.deleted}개 삭제`;
+  if (result.stoppedReason === "rate_limit") {
+    value += "\n속도 제한으로 일부만 삭제";
+  }
+  return [{ name: "피드 정리", value }];
+}
 
 const logger = new Logger();
 
 export async function WebhookPostNotification(
   meal: DateMeal,
-  image?: Buffer
+  image?: Buffer,
+  trim?: TrimOutcome
 ) {
   try {
     const meals = meal.meals;
@@ -33,6 +63,7 @@ export async function WebhookPostNotification(
           description: mealDescription,
           color: 0x457bff,
           timestamp: `${meal.date}T00:00:00+09:00`,
+          fields: trimEmbedField(trim),
           footer: {
             text: formatIsoDateKorean(meal.date),
           },
@@ -54,10 +85,12 @@ export async function WebhookRestNotification({
   date,
   items,
   image,
+  trim,
 }: {
   date: string;
   items: RestImageItem[];
   image?: Buffer;
+  trim?: TrimOutcome;
 }): Promise<void> {
   if (!env.DISCORD_WEBHOOK_URL) {
     logger.warn("[Webhook] DISCORD_WEBHOOK_URL 없음 - 휴일 알림 스킵");
@@ -84,6 +117,7 @@ export async function WebhookRestNotification({
           title: "선린투데이 휴일 업로드 알림",
           description,
           color: 0xea5c51,
+          fields: trimEmbedField(trim),
           footer: {
             text: monthLabel,
           },

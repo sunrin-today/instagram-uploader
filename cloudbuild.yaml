@@ -36,6 +36,7 @@ substitutions:
   _SECRETS: >-
     DATABASE_URL=database-url:latest,
     INSTAGRAM_ACCESS_TOKEN=instagram-access-token:latest,
+    INSTAGRAM_DELETE_ACCESS_TOKEN=instagram-delete-access-token:latest,
     DISCORD_WEBHOOK_URL=discord-webhook-url:latest,
     DISCORD_ERROR_MENTION_IDS=discord-error-mention-ids:latest,
     API_KEY=api-key:latest
@@ -44,6 +45,7 @@ substitutions:
     SCHOOL_NAME=선린인터넷고등학교,
     INSTAGRAM_USERNAME=sunrin_today,
     INSTAGRAM_IG_ID=1784146540991058488,
+    INSTAGRAM_DELETE_GRAPH_API_BASE=https://graph.facebook.com/v25.0,
     GCS_BUCKET=sunrin-today-instagram,
     API_BASE_URL=https://api.sunrin.kr,
     JOB_MAX_RETRIES=1

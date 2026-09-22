@@ -1,5 +1,16 @@
 export const DEFAULT_MEDIA_LIMIT = 365;
 
+export type TrimResult = {
+  before: number;
+  deleted: number;
+  after: number;
+  stoppedReason?: "rate_limit";
+};
+
+export type TrimOutcome =
+  | { ok: true; result: TrimResult }
+  | { ok: false; error: string };
+
 export type MediaItem = {
   id: string;
   timestamp?: string;

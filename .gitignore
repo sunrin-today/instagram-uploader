@@ -7,6 +7,12 @@ logs
 /dist
 
 .env
+.env.*
+!.env.example
+
+# 로컬에서 받아 둔 토큰. docs 가이드는 커밋하고 실제 값은 여기 두지 말 것
+tokens/
+*.token
 
 /.pnpm-store
 /build

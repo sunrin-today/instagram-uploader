@@ -18,6 +18,8 @@ pnpm install
 pnpm run setup:python
 ```
 
+토큰이 만료됐거나 삭제 권한이 필요하면 [docs/tokens.md](docs/tokens.md)를 보면 됩니다.
+
 ## 사용
 
 ```bash
